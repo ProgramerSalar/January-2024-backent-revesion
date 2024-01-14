@@ -1,6 +1,6 @@
 import express, { NextFunction, Response, Request } from "express";
 import { config } from "dotenv";
-
+import NodeCache from "node-cache";
 
 
 // Routes
@@ -20,6 +20,7 @@ config({
   path: ".env",
 });
 app.use("/uploads", express.static("uploads"))
+export const myCache = new NodeCache()
 
 
 

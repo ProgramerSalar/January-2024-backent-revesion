@@ -5,6 +5,10 @@ import { Product } from "../models/product.js";
 import { ErrorHandler } from "../utils/ErrorHandler.js";
 import { rm } from "fs";
 import {faker} from "@faker-js/faker"
+import { myCache } from "../app.js";
+import { invalidateCache } from "../utils/features.js";
+
+
 
 
 export const newProduct = TryCatch(
@@ -28,6 +32,11 @@ export const newProduct = TryCatch(
       photo: photo.path,
     });
 
+    await invalidateCache({product:true})
+
+    
+    
+
     return res.status(201).json({
       success: true,
       message: "Product Created Successfully",
@@ -36,11 +45,25 @@ export const newProduct = TryCatch(
 );
 
 export const getLatestProduct = TryCatch(async (req, res, next) => {
-  const products = await Product.find({})
+
+  let products;
+  const key = "latest-product"
+
+  if(myCache.has(key)){
+    products = JSON.parse(myCache.get(key) as string)
+  }
+
+
+
+  else{
+    products = await Product.find({})
     .sort({
       createdAt: -1,
     })
     .limit(5);
+    myCache.set(key, JSON.stringify(products))
+  }
+  
 
   return res.status(400).json({
     success: true,
@@ -49,7 +72,18 @@ export const getLatestProduct = TryCatch(async (req, res, next) => {
 });
 
 export const getAllCategories = TryCatch(async (req, res, next) => {
-  const categories = await Product.distinct("category"); // unique category are show
+
+  let categories;
+  const key = "categories"
+  if (myCache.has(key)){
+    categories = JSON.parse(myCache.get(key) as string)
+  }
+
+  else{
+  categories = await Product.distinct("category"); // unique category are show
+  myCache.set(key, JSON.stringify(categories))
+
+  }
 
   return res.status(200).json({
     success: true,
@@ -58,9 +92,23 @@ export const getAllCategories = TryCatch(async (req, res, next) => {
 });
 
 export const getAdminProducts = TryCatch(async (req, res, next) => {
-  const products = await Product.find({}).sort({
-    createdAt: -1,
-  });
+
+  let products;
+  const key = "all-products"
+  if(myCache.has(key)){
+    products = JSON.parse(myCache.get(key) as string)
+  }
+
+
+  else{
+
+    products = await Product.find({}).sort({
+      createdAt: -1,
+    });
+    myCache.set(key, JSON.stringify(products))
+
+  }
+
 
   return res.status(400).json({
     success: true,
@@ -69,7 +117,17 @@ export const getAdminProducts = TryCatch(async (req, res, next) => {
 });
 
 export const getSingleProduct = TryCatch(async (req, res, next) => {
-  const product = await Product.findById(req.params.id);
+  let product;
+  const id = req.params.id
+  const key =`product-${id}`
+
+  if(myCache.has(key))
+    product = JSON.parse(myCache.get(key) as string);
+  else{
+    const product = await Product.findById(id);
+    myCache.set(`product-${id}`, JSON.stringify(product))
+
+  }
 
   return res.status(200).json({
     success: true,
@@ -100,6 +158,7 @@ export const UpdateProduct = TryCatch(async (req, res, next) => {
   if (category) product.category = category;
 
   await product.save();
+  await invalidateCache({product:true})
 
   return res.status(201).json({
     success: true,
@@ -118,6 +177,8 @@ export const DeletedProduct = TryCatch(async (req, res, next) => {
     }
   );
   await product.deleteOne();
+  await invalidateCache({product:true})
+
 
   return res.status(200).json({
     success: true,
