@@ -7,7 +7,7 @@ import { config } from "dotenv";
 import userRoutes from "./routes/userRoutes.js";
 import { connectDB } from "./utils/features.js";
 import { errorMiddleware } from "./middleware/error.js";
-
+import productRoutes from "./routes/productRoutes.js"
 
 
 
@@ -19,12 +19,18 @@ app.use("/uploads", express.static("uploads"));
 config({
   path: ".env",
 });
+app.use("/uploads", express.static("uploads"))
 
 
 
 
 
 app.use("/api/v1/user", userRoutes);
+app.use("/api/v1/product",productRoutes)
+
+
+
+
 
 // error middleware
 app.use(errorMiddleware);
