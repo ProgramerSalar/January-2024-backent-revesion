@@ -191,27 +191,107 @@ export const getPiChart = TryCatch(async (req, res, next) => {
   if (myCache.has(key)) {
     charts = JSON.parse(myCache.get(key) as string);
   } else {
-    const [processingOrder, shippedOrder, deliveredOrder] = await Promise.all([
+    const [
+      processingOrder,
+      shippedOrder,
+      deliveredOrder,
+      categories,
+      productCount,
+      OutOfStock,
+      allOrders,
+      allUsers,
+      adminUsers,
+      CustomerUser,
+    ] = await Promise.all([
       Order.countDocuments({ status: "Processing" }),
       Order.countDocuments({ status: "Shipped" }),
       Order.countDocuments({ status: "Delivered" }),
+      Product.distinct("category"),
+      Product.countDocuments(),
+      Product.countDocuments({ stock: 0 }),
+      Order.find({}).select([
+        "total",
+        "discount",
+        "subtotal",
+        "tax",
+        "shippingCharges",
+      ]),
+      User.find({}).select(["dob"]),
+      User.countDocuments({ role: "admin" }),
+      User.countDocuments({ role: "user" }),
     ]);
 
     const orderFullFillElement = {
-      processing:processingOrder,
-      shipped:shippedOrder,
-      deliver:deliveredOrder
+      processing: processingOrder,
+      shipped: shippedOrder,
+      deliver: deliveredOrder,
+    };
+
+    const productCategoryRatio = await getInventeries({
+      categories,
+      productCount,
+    });
+
+    const stockAvailability = {
+      inStock: productCount - OutOfStock,
+      OutOfStock,
+    };
+
+    const grossIncome = allOrders.reduce(
+      (prev, order) => prev + (order.total || 0),
+      0
+    );
+
+    const discount = allOrders.reduce(
+      (prev, order) => prev + (order.discount || 0),
+      0
+    );
+
+    const productionCost = allOrders.reduce(
+      (prev, order) => prev + (order.shippingCharges || 0),
+      0
+    );
+    const burn = allOrders.reduce((prev, order) => prev + (order.tax || 0), 0);
+    const markatingCost = Math.round(grossIncome * (30 / 100));
+    const netMargin =
+      grossIncome - discount - productionCost - burn - markatingCost;
+
+    const revenueDistribution = {
+      netMargin,
+      discount,
+      productionCost,
+      burn,
+      markatingCost,
+    };
+
+    const userAgeGroup = {
+      teen: allUsers.filter((i) => i.age < 20).length,
+      adult: allUsers.filter((i) => i.age >= 20 && i.age < 40).length,
+      old: allUsers.filter((i) => i.age >= 40).length,
     }
-    charts =  {
-      orderFullFillElement
+
+    const adminCustomer = {
+      admin:adminUsers,
+      customer:CustomerUser,
     }
-    myCache.set(key, JSON.stringify(charts))
+
+
+
+    charts = {
+      orderFullFillElement,
+      productCategoryRatio,
+      stockAvailability,
+      revenueDistribution,
+      userAgeGroup,
+      adminCustomer
+    };
+    myCache.set(key, JSON.stringify(charts));
   }
 
   return res.status(200).json({
-    success:true,
-    charts
-  })
+    success: true,
+    charts,
+  });
 });
 
 export const getBarChart = () => {};
