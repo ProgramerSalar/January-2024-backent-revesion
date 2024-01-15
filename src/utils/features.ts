@@ -19,46 +19,40 @@ export const invalidateCache = async ({
   admin,
   userId,
   orderId,
-  productId
+  productId,
 }: invalidateCacheProps) => {
   if (product) {
     const productKeys: string[] = [
       "latest-product",
       "categories",
       "all-products",
-      `product-${productId}`
+      `product-${productId}`,
     ];
 
-    if(typeof productId === "string"){
-      productKeys.push( `product-${productId}`)
+    if (typeof productId === "string") {
+      productKeys.push(`product-${productId}`);
     }
-    if(typeof productId === "object"){
-      productId.forEach((i) => productKeys.push(`product-${i}`))
+    if (typeof productId === "object") {
+      productId.forEach((i) => productKeys.push(`product-${i}`));
     }
 
-    myCache.del(productKeys)
-
-    
+    myCache.del(productKeys);
   }
 
   if (order) {
     const ordersKeys: string[] = [
       "all-orders",
       `my-orders-${userId}`,
-      `order-${orderId}`
-    ]
+      `order-${orderId}`,
+    ];
 
-    const orders = await Product.find({}).select("_id")
+    const orders = await Product.find({}).select("_id");
     orders.forEach((i) => {
-      ordersKeys.push()
-    })
-    myCache.del(ordersKeys)
+      ordersKeys.push();
+    });
+    myCache.del(ordersKeys);
   }
 
-
-
-
-  
   if (admin) {
   }
 };
@@ -73,4 +67,32 @@ export const reduceStock = async (orderItems: OrderItemTypes[]) => {
     product.stock -= order.quantity;
     await product.save();
   }
+};
+
+export const calculatePercentage = (thisMonth: number, lastMonth: number) => {
+  if (lastMonth === 0) {
+    return thisMonth * 100;
+  }
+  const percent = ((thisMonth - lastMonth) / lastMonth) * 100;
+  return Number(percent.toFixed(0));
+};
+
+export const getInventeries = async ({
+  categories,
+  productCount,
+}: {
+  categories: string[];
+  productCount: number;
+}) => {
+  const categoriesCountPromise = categories.map((category) =>
+    Product.countDocuments({ category })
+  );
+  const categoriesCount = await Promise.all(categoriesCountPromise);
+  const categoryCount: Record<string, number>[] = []; // categoryCount ka Rrecord me  string or number in array
+  categories.forEach((category, i) => {
+    categoryCount.push({
+      [category]: Math.round((categoriesCount[i] / productCount) * 100),
+    });
+  });
+  return categoryCount;
 };
