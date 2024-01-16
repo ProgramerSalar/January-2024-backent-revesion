@@ -3,7 +3,12 @@ import { TryCatch } from "../middleware/error.js";
 import { Order } from "../models/order.js";
 import { Product } from "../models/product.js";
 import { User } from "../models/user.js";
-import { calculatePercentage, getChartData, getInventeries } from "../utils/features.js";
+import {
+  MyDocument,
+  calculatePercentage,
+  getChartData,
+  getInventeries,
+} from "../utils/features.js";
 
 export const getDashboard = TryCatch(async (req, res, next) => {
   let stats = {};
@@ -331,33 +336,88 @@ export const getBarChart = TryCatch(async (req, res, next) => {
       lastTwelveMonthOrdersPromise,
     ]);
 
-
     const productCounts = getChartData({ length: 6, today, docArr: products });
-    const userCounts = getChartData({ length:6, today, docArr:users})
-    const orderCounts = getChartData({ length: 12, today, docArr:orders})
+    const userCounts = getChartData({ length: 6, today, docArr: users });
+    const orderCounts = getChartData({ length: 12, today, docArr: orders });
 
     charts = {
-      user:userCounts,
-      products:productCounts,
-      orders:orderCounts
+      user: userCounts,
+      products: productCounts,
+      orders: orderCounts,
     };
-
-
-
 
     myCache.set(key, JSON.stringify(charts));
   }
 
   res.status(200).json({
-    success:true,
-    charts
-  })
+    success: true,
+    charts,
+  });
 });
 
-export const getlineChart = () => {
+export const getlineChart = TryCatch(async (req, res, next) => {
+  let charts;
+  const key = "admin-line-charts";
 
+  if (myCache.has(key)) charts = JSON.parse(myCache.get(key) as string);
+  else {
+    const today = new Date();
 
-  
+    const twelveMonthsAgo = new Date();
+    twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
 
+    const baseQuery = {
+      createdAt: {
+        $gte: twelveMonthsAgo,
+        $lte: today,
+      },
+    };
 
-};
+    const ordersPomise: MyDocument[] = await Order.find(baseQuery).select([
+      "createdAt",
+      "discount",
+      "total",
+    ]);
+    const transformedOrders: MyDocument[] = ordersPomise.map((order) => ({
+      createdAt: order.createdAt,
+      discount: order.discount,
+      total: order.total,
+    }));
+
+    const [products, users] = await Promise.all([
+      Product.find(baseQuery).select("createdAt"),
+      User.find(baseQuery).select("createdAt"),
+    ]);
+
+    const productCounts = getChartData({ length: 12, today, docArr: products });
+    const usersCounts = getChartData({ length: 12, today, docArr: users });
+
+    const discount = getChartData({
+      length: 12,
+      today,
+      docArr: transformedOrders,
+      property: "discount",
+    });
+
+    const revenue = getChartData({
+      length: 12,
+      today,
+      docArr: transformedOrders,
+      property: "total",
+    });
+
+    charts = {
+      users: usersCounts,
+      products: productCounts,
+      discount,
+      revenue,
+    };
+
+    myCache.set(key, JSON.stringify(charts));
+  }
+
+  return res.status(200).json({
+    success: true,
+    charts,
+  });
+});

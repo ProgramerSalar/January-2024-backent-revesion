@@ -99,7 +99,7 @@ export const getInventeries = async ({
 
 
 
-interface MyDocument{
+export type MyDocument = {
   createdAt: Date;
   discount?: number;
   total?: number;
